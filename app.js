@@ -469,7 +469,8 @@ function renderCalendar(){
     getShifts(date).forEach((shift,index) => {
       const p = placeByName(shift.place || "その他");
       const btn = document.createElement("button");
-      btn.className = "shiftChip";
+      const placeIndex = Math.max(0, places().findIndex(item => item.name === p.name));
+      btn.className = `shiftChip place-${placeIndex}`;
       btn.style.borderLeftColor = p.color;
       btn.style.background = softColor(p.color);
       btn.innerHTML = `<strong>${shift.start || "--:--"}-${shift.end || "--:--"}</strong>`;
