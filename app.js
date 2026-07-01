@@ -41,9 +41,13 @@ function cloudDocRef(){
 
 function collectLocalData(){
   const days = {};
+  const memos = {};
   Object.keys(localStorage).forEach(keyName => {
     if(keyName.startsWith("shift:20")){
       days[keyName] = JSON.parse(localStorage.getItem(keyName));
+    }
+    if(keyName.startsWith("shift:memo:")){
+      memos[keyName] = localStorage.getItem(keyName);
     }
   });
   return {
@@ -51,7 +55,8 @@ function collectLocalData(){
     presets: JSON.parse(localStorage.getItem("shift:presets") || "null"),
     wages: JSON.parse(localStorage.getItem("shift:wages") || "null"),
     accordion: JSON.parse(localStorage.getItem("shift:accordion") || "null"),
-    days
+    days,
+    memos
   };
 }
 
@@ -66,10 +71,16 @@ function applyCloudData(data){
 
   Object.keys(localStorage).forEach(keyName => {
     if(keyName.startsWith("shift:20")) localStorage.removeItem(keyName);
+    if(keyName.startsWith("shift:memo:")) localStorage.removeItem(keyName);
   });
   if(data.days){
     Object.entries(data.days).forEach(([keyName, value]) => {
       localStorage.setItem(keyName, JSON.stringify(value));
+    });
+  }
+  if(data.memos){
+    Object.entries(data.memos).forEach(([keyName, value]) => {
+      localStorage.setItem(keyName, value || "");
     });
   }
 
@@ -109,7 +120,15 @@ async function setupCloudForUser(user){
   }
 
   cloudReady = true;
-  renderAll();
+  let monthMemoSaveTimer = null;
+if($("monthMemo")){
+  $("monthMemo").addEventListener("input", e => {
+    clearTimeout(monthMemoSaveTimer);
+    monthMemoSaveTimer = setTimeout(() => saveMonthMemo(e.target.value), 350);
+  });
+}
+
+renderAll();
 
   unsubscribeCloud = onSnapshot(ref, docSnap => {
     if(!docSnap.exists() || applyingCloud) return;
@@ -160,6 +179,7 @@ const PRESET_KEY = "shift:presets";
 const WAGE_KEY = "shift:wages";
 const ACCORDION_KEY = "shift:accordion";
 const DAY_PREFIX = "shift:";
+const MEMO_PREFIX = "shift:memo:";
 
 const defaults = [
   { name:"いきいき", color:"#2f9e44" },
@@ -176,6 +196,14 @@ function key(date){ return `${date.getFullYear()}-${String(date.getMonth()+1).pa
 function monthFileKey(date){ return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}`; }
 function dateText(date){ return `${date.getFullYear()}年${date.getMonth()+1}月${date.getDate()}日`; }
 function md(date){ return `${date.getMonth()+1}/${date.getDate()}`; }
+
+function memoKey(date){ return MEMO_PREFIX + monthFileKey(date); }
+function monthMemo(){ return localStorage.getItem(memoKey(current)) || ""; }
+function saveMonthMemo(value){
+  localStorage.setItem(memoKey(current), value || "");
+  syncCloud();
+}
+
 
 function places(){ return JSON.parse(localStorage.getItem(PLACE_KEY) || "null") || defaults; }
 function savePlaces(list){ localStorage.setItem(PLACE_KEY, JSON.stringify(list)); syncCloud(); }
@@ -395,6 +423,7 @@ function renderCalendar(){
   const y = current.getFullYear();
   const m = current.getMonth();
   $("monthTitle").textContent = `${y}年${m+1}月`;
+  if($("monthMemo")) $("monthMemo").value = monthMemo();
   const grid = $("calendarGrid");
   grid.innerHTML = "";
   const first = new Date(y,m,1);
@@ -514,6 +543,7 @@ function renderSide(){
   $("monthBreak").textContent = minuteText(totalBreak);
   const salaryTotal = Object.values(byPlace).reduce((sum,total) => sum + (total.work / 60) * Number(total.wage || 0), 0);
   $("monthSalary").textContent = yen(salaryTotal);
+  updateTopSummary(totalWork, salaryTotal);
   if($("topMonthSalary")) $("topMonthSalary").textContent = yen(salaryTotal);
   if($("topMonthWork")) $("topMonthWork").textContent = minuteText(totalWork);
   renderWageSettings();
@@ -528,6 +558,14 @@ function renderSide(){
     placeBox.appendChild(row);
   });
 }
+
+function updateTopSummary(monthWorkMinutes, salaryTotal){
+  const salary = $("topMonthSalary");
+  const work = $("topMonthWork");
+  if(salary) salary.textContent = yen(salaryTotal || 0);
+  if(work) work.textContent = minuteText(monthWorkMinutes || 0);
+}
+
 function fillPlaceSelect(value){
   const select = $("placeSelect");
   const old = value || select.value;
@@ -780,7 +818,8 @@ function backup(){
     wages:wages(),
     presets:presets(),
     accordion:JSON.parse(localStorage.getItem(ACCORDION_KEY) || "null"),
-    days:{}
+    days:{},
+    memos:{}
   };
   Object.keys(localStorage).forEach(storageKey => {
     if(storageKey.startsWith(DAY_PREFIX+"20")) output.days[storageKey] = JSON.parse(localStorage.getItem(storageKey));

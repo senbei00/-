@@ -246,3 +246,69 @@ dialog::backdrop{background:rgba(15,20,30,.32)}
     grid-template-columns:1fr !important;
   }
 }
+
+/* v3: weekend cell background + top memo */
+.day.saturday{
+  background:#f4f8ff !important;
+}
+.day.saturday.other{
+  background:#f1f6ff !important;
+}
+.day.saturday.today{
+  background:#eaf3ff !important;
+}
+.day.sunday{
+  background:#fff5f5 !important;
+}
+.day.sunday.other{
+  background:#fff1f1 !important;
+}
+.day.sunday.today{
+  background:#ffecec !important;
+}
+.day.holiday{
+  background:#fff0f0 !important;
+}
+.day.holiday.other{
+  background:#fff0f0 !important;
+}
+.day.holiday.today{
+  background:#ffe8e8 !important;
+}
+
+.topMemoBox{
+  display:grid;
+  grid-template-columns:54px minmax(0,1fr);
+  align-items:start;
+  gap:10px;
+  margin:0 0 12px;
+  padding:10px 12px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:#fff;
+}
+.topMemoBox label{
+  font-size:13px;
+  font-weight:900;
+  color:var(--muted);
+  padding-top:8px;
+}
+.topMemoBox textarea{
+  width:100%;
+  min-width:0;
+  resize:vertical;
+  border:0;
+  outline:none;
+  font:inherit;
+  line-height:1.45;
+  background:transparent;
+}
+@media(max-width:700px){
+  .topMemoBox{
+    grid-template-columns:1fr;
+    gap:4px;
+  }
+  .topMemoBox label{
+    padding-top:0;
+  }
+}
