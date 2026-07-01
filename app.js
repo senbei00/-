@@ -773,7 +773,13 @@ function renderPlaceSettings(){
   });
 }
 function backup(){
-  const output = { places:places(), wages:wages(), presets:presets(), days:{} };
+  const output = {
+    places:places(),
+    wages:wages(),
+    presets:presets(),
+    accordion:JSON.parse(localStorage.getItem(ACCORDION_KEY) || "null"),
+    days:{}
+  };
   Object.keys(localStorage).forEach(storageKey => {
     if(storageKey.startsWith(DAY_PREFIX+"20")) output.days[storageKey] = JSON.parse(localStorage.getItem(storageKey));
   });
@@ -783,6 +789,48 @@ function backup(){
   link.download = `shift-backup-${monthFileKey(new Date())}.json`;
   link.click();
 }
+
+function importBackupData(data){
+  if(!data || typeof data !== "object"){
+    alert("読み込めないバックアップファイルです。");
+    return;
+  }
+
+  applyingCloud = true;
+
+  if(data.places) localStorage.setItem(PLACE_KEY, JSON.stringify(data.places));
+  if(data.wages) localStorage.setItem(WAGE_KEY, JSON.stringify(data.wages));
+  if(data.presets) localStorage.setItem(PRESET_KEY, JSON.stringify(data.presets));
+  if(data.accordion) localStorage.setItem(ACCORDION_KEY, JSON.stringify(data.accordion));
+
+  if(data.days){
+    Object.keys(localStorage).forEach(storageKey => {
+      if(storageKey.startsWith(DAY_PREFIX+"20")) localStorage.removeItem(storageKey);
+    });
+    Object.entries(data.days).forEach(([keyName,value]) => {
+      localStorage.setItem(keyName, JSON.stringify(value));
+    });
+  }
+
+  applyingCloud = false;
+  syncCloud();
+  renderAll();
+  alert("インポートしました。ログイン中ならクラウドにも保存されます。");
+}
+
+function handleImportFile(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      importBackupData(JSON.parse(reader.result));
+    }catch(error){
+      alert("JSONファイルを読み込めませんでした。");
+    }
+  };
+  reader.readAsText(file);
+}
+
 function initAccordions(){
   const saved = JSON.parse(localStorage.getItem(ACCORDION_KEY) || "null") || {};
   document.querySelectorAll(".accordion").forEach(section => {
@@ -831,6 +879,8 @@ $("addPlace").onclick = () => {
   renderAll();
 };
 $("backupBtn").onclick = backup;
+$("importBtn").onclick = () => $("importFile").click();
+$("importFile").onchange = e => handleImportFile(e.target.files[0]);
 $("resetBtn").onclick = () => {
   if(!confirm("保存されたシフトデータをすべて削除しますか？")) return;
   Object.keys(localStorage).forEach(storageKey => {
