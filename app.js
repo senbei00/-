@@ -16,6 +16,22 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
+const $ = id => document.getElementById(id);
+
+const PLACE_KEY = "shift:places";
+const PRESET_KEY = "shift:presets";
+const WAGE_KEY = "shift:wages";
+const ACCORDION_KEY = "shift:accordion";
+const DAY_PREFIX = "shift:";
+const MEMO_PREFIX = "shift:memo:";
+
+const defaults = [
+  { name:"いきいき", color:"#2f9e44" },
+  { name:"ユニクロ", color:"#e03131" },
+  { name:"居酒屋", color:"#f08c00" },
+  { name:"その他", color:"#7048e8" }
+];
+
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
@@ -25,6 +41,49 @@ let currentUser = null;
 let cloudReady = false;
 let applyingCloud = false;
 let unsubscribeCloud = null;
+let current = startOfDay(new Date());
+let selected = startOfDay(new Date());
+let memoTimer = null;
+
+function startOfDay(date){ const d = new Date(date); d.setHours(0,0,0,0); return d; }
+function key(date){ return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`; }
+function monthFileKey(date){ return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}`; }
+function weekdayLabel(date){ return ["日","月","火","水","木","金","土"][date.getDay()]; }
+function dateText(date){ return `${date.getFullYear()}年${date.getMonth()+1}月${date.getDate()}日（${weekdayLabel(date)}）`; }
+function md(date){ return `${date.getMonth()+1}/${date.getDate()}`; }
+function selectedDateClass(date){
+  if(holidayName(date) || date.getDay() === 0) return "selectedDate sundayText";
+  if(date.getDay() === 6) return "selectedDate saturdayText";
+  return "selectedDate";
+}
+
+function memoKey(date){ return MEMO_PREFIX + monthFileKey(date); }
+function monthMemo(){ return localStorage.getItem(memoKey(current)) || ""; }
+function saveMonthMemo(value){
+  localStorage.setItem(memoKey(current), value || "");
+  syncCloud();
+}
+
+function places(){ return JSON.parse(localStorage.getItem(PLACE_KEY) || "null") || defaults; }
+function savePlaces(list){ localStorage.setItem(PLACE_KEY, JSON.stringify(list)); syncCloud(); }
+function placeByName(name){ return places().find(p => p.name === name) || places()[0] || defaults[0]; }
+
+function wages(){
+  const saved = JSON.parse(localStorage.getItem(WAGE_KEY) || "null") || {};
+  places().forEach(p => { if(saved[p.name] === undefined) saved[p.name] = 0; });
+  return saved;
+}
+function saveWages(data){ localStorage.setItem(WAGE_KEY, JSON.stringify(data)); syncCloud(); }
+function yen(value){ return "¥" + Math.round(value || 0).toLocaleString("ja-JP"); }
+
+function presets(){
+  return JSON.parse(localStorage.getItem(PRESET_KEY) || "null") || [
+    { place:"いきいき", start:"14:00", end:"17:00", breakMinutes:0, memo:"" },
+    { place:"ユニクロ", start:"09:00", end:"14:00", breakMinutes:0, memo:"" },
+    { place:"居酒屋", start:"18:00", end:"23:00", breakMinutes:0, memo:"" }
+  ];
+}
+function savePresets(list){ localStorage.setItem(PRESET_KEY, JSON.stringify(list)); syncCloud(); }
 
 function hasValidFirebaseConfig(){
   return firebaseConfig &&
@@ -33,45 +92,38 @@ function hasValidFirebaseConfig(){
     firebaseConfig.projectId &&
     !String(firebaseConfig.projectId).includes("PASTE_");
 }
-
 function cloudDocRef(){
   if(!currentUser) return null;
   return doc(db, "users", currentUser.uid, "shiftData", "main");
 }
-
 function collectLocalData(){
   const days = {};
   const memos = {};
   Object.keys(localStorage).forEach(keyName => {
-    if(keyName.startsWith("shift:20")){
-      days[keyName] = JSON.parse(localStorage.getItem(keyName));
-    }
-    if(keyName.startsWith("shift:memo:")){
-      memos[keyName] = localStorage.getItem(keyName);
-    }
+    if(keyName.startsWith(DAY_PREFIX + "20")) days[keyName] = JSON.parse(localStorage.getItem(keyName));
+    if(keyName.startsWith(MEMO_PREFIX)) memos[keyName] = localStorage.getItem(keyName);
   });
   return {
-    places: JSON.parse(localStorage.getItem("shift:places") || "null"),
-    presets: JSON.parse(localStorage.getItem("shift:presets") || "null"),
-    wages: JSON.parse(localStorage.getItem("shift:wages") || "null"),
-    accordion: JSON.parse(localStorage.getItem("shift:accordion") || "null"),
+    places: JSON.parse(localStorage.getItem(PLACE_KEY) || "null"),
+    presets: JSON.parse(localStorage.getItem(PRESET_KEY) || "null"),
+    wages: JSON.parse(localStorage.getItem(WAGE_KEY) || "null"),
+    accordion: JSON.parse(localStorage.getItem(ACCORDION_KEY) || "null"),
     days,
     memos
   };
 }
-
 function applyCloudData(data){
   if(!data) return;
   applyingCloud = true;
 
-  if(data.places) localStorage.setItem("shift:places", JSON.stringify(data.places));
-  if(data.presets) localStorage.setItem("shift:presets", JSON.stringify(data.presets));
-  if(data.wages) localStorage.setItem("shift:wages", JSON.stringify(data.wages));
-  if(data.accordion) localStorage.setItem("shift:accordion", JSON.stringify(data.accordion));
+  if(data.places) localStorage.setItem(PLACE_KEY, JSON.stringify(data.places));
+  if(data.presets) localStorage.setItem(PRESET_KEY, JSON.stringify(data.presets));
+  if(data.wages) localStorage.setItem(WAGE_KEY, JSON.stringify(data.wages));
+  if(data.accordion) localStorage.setItem(ACCORDION_KEY, JSON.stringify(data.accordion));
 
   Object.keys(localStorage).forEach(keyName => {
-    if(keyName.startsWith("shift:20")) localStorage.removeItem(keyName);
-    if(keyName.startsWith("shift:memo:")) localStorage.removeItem(keyName);
+    if(keyName.startsWith(DAY_PREFIX + "20")) localStorage.removeItem(keyName);
+    if(keyName.startsWith(MEMO_PREFIX)) localStorage.removeItem(keyName);
   });
   if(data.days){
     Object.entries(data.days).forEach(([keyName, value]) => {
@@ -86,17 +138,12 @@ function applyCloudData(data){
 
   applyingCloud = false;
 }
-
 async function syncCloud(){
   if(!currentUser || !cloudReady || applyingCloud) return;
   const ref = cloudDocRef();
   if(!ref) return;
-  await setDoc(ref, {
-    ...collectLocalData(),
-    updatedAt: serverTimestamp()
-  }, { merge: true });
+  await setDoc(ref, { ...collectLocalData(), updatedAt: serverTimestamp() }, { merge:true });
 }
-
 async function setupCloudForUser(user){
   currentUser = user;
   cloudReady = false;
@@ -109,26 +156,11 @@ async function setupCloudForUser(user){
   const ref = cloudDocRef();
   const snap = await getDoc(ref);
 
-  if(snap.exists()){
-    applyCloudData(snap.data());
-  }else{
-    await setDoc(ref, {
-      ...collectLocalData(),
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
-  }
+  if(snap.exists()) applyCloudData(snap.data());
+  else await setDoc(ref, { ...collectLocalData(), createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 
   cloudReady = true;
-  let monthMemoSaveTimer = null;
-if($("monthMemo")){
-  $("monthMemo").addEventListener("input", e => {
-    clearTimeout(monthMemoSaveTimer);
-    monthMemoSaveTimer = setTimeout(() => saveMonthMemo(e.target.value), 350);
-  });
-}
-
-renderAll();
+  renderAll();
 
   unsubscribeCloud = onSnapshot(ref, docSnap => {
     if(!docSnap.exists() || applyingCloud) return;
@@ -136,11 +168,10 @@ renderAll();
     renderAll();
   });
 }
-
 function setupAuth(){
-  const status = document.getElementById("authStatus");
-  const loginBtn = document.getElementById("loginBtn");
-  const logoutBtn = document.getElementById("logoutBtn");
+  const status = $("authStatus");
+  const loginBtn = $("loginBtn");
+  const logoutBtn = $("logoutBtn");
 
   if(!hasValidFirebaseConfig()){
     status.textContent = "Firebase未設定";
@@ -171,67 +202,6 @@ function setupAuth(){
   });
 }
 
-
-const $ = id => document.getElementById(id);
-
-const PLACE_KEY = "shift:places";
-const PRESET_KEY = "shift:presets";
-const WAGE_KEY = "shift:wages";
-const ACCORDION_KEY = "shift:accordion";
-const DAY_PREFIX = "shift:";
-const MEMO_PREFIX = "shift:memo:";
-
-const defaults = [
-  { name:"いきいき", color:"#2f9e44" },
-  { name:"ユニクロ", color:"#e03131" },
-  { name:"居酒屋", color:"#f08c00" },
-  { name:"その他", color:"#7048e8" }
-];
-
-let current = startOfDay(new Date());
-let selected = startOfDay(new Date());
-
-function startOfDay(date){ const d = new Date(date); d.setHours(0,0,0,0); return d; }
-function key(date){ return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`; }
-function monthFileKey(date){ return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}`; }
-function weekdayLabel(date){ return ["日","月","火","水","木","金","土"][date.getDay()]; }
-function dateText(date){ return `${date.getFullYear()}年${date.getMonth()+1}月${date.getDate()}日（${weekdayLabel(date)}）`; }
-function selectedDateClass(date){
-  if(holidayName(date) || date.getDay() === 0) return "selectedDate sundayText";
-  if(date.getDay() === 6) return "selectedDate saturdayText";
-  return "selectedDate";
-}
-function md(date){ return `${date.getMonth()+1}/${date.getDate()}`; }
-
-function memoKey(date){ return MEMO_PREFIX + monthFileKey(date); }
-function monthMemo(){ return localStorage.getItem(memoKey(current)) || ""; }
-function saveMonthMemo(value){
-  localStorage.setItem(memoKey(current), value || "");
-  syncCloud();
-}
-
-
-function places(){ return JSON.parse(localStorage.getItem(PLACE_KEY) || "null") || defaults; }
-function savePlaces(list){ localStorage.setItem(PLACE_KEY, JSON.stringify(list)); syncCloud(); }
-function placeByName(name){ return places().find(p => p.name === name) || places()[0] || defaults[0]; }
-
-function wages(){
-  const saved = JSON.parse(localStorage.getItem(WAGE_KEY) || "null") || {};
-  places().forEach(p => { if(saved[p.name] === undefined) saved[p.name] = 0; });
-  return saved;
-}
-function saveWages(data){ localStorage.setItem(WAGE_KEY, JSON.stringify(data)); syncCloud(); }
-function yen(value){ return "¥" + Math.round(value || 0).toLocaleString("ja-JP"); }
-
-function presets(){
-  return JSON.parse(localStorage.getItem(PRESET_KEY) || "null") || [
-    { place:"いきいき", start:"14:00", end:"17:00", breakMinutes:0, memo:"" },
-    { place:"ユニクロ", start:"09:00", end:"14:00", breakMinutes:0, memo:"" },
-    { place:"居酒屋", start:"18:00", end:"23:00", breakMinutes:0, memo:"" }
-  ];
-}
-function savePresets(list){ localStorage.setItem(PRESET_KEY, JSON.stringify(list)); syncCloud(); }
-
 function nthMonday(year, monthIndex, nth){
   const d = new Date(year, monthIndex, 1);
   return new Date(year, monthIndex, 1 + ((8 - d.getDay()) % 7) + (nth - 1) * 7);
@@ -259,6 +229,7 @@ function japaneseHolidayMap(year){
   add(nthMonday(year,9,2), "スポーツの日");
   add(new Date(year,10,3), "文化の日");
   add(new Date(year,10,23), "勤労感謝の日");
+
   [...map.keys()].sort().forEach(dateKey => {
     const d = new Date(dateKey);
     if(d.getDay() !== 0) return;
@@ -266,6 +237,7 @@ function japaneseHolidayMap(year){
     do { sub.setDate(sub.getDate() + 1); } while(map.has(key(sub)));
     map.set(key(sub), "振替休日");
   });
+
   for(let m=0; m<12; m++){
     const last = new Date(year, m+1, 0).getDate();
     for(let day=2; day<last; day++){
@@ -280,9 +252,29 @@ function japaneseHolidayMap(year){
 }
 function holidayName(date){ return japaneseHolidayMap(date.getFullYear()).get(key(date)) || ""; }
 
+function normalizeDigits(value){
+  return String(value || "")
+    .replace(/[０-９]/g, char => String.fromCharCode(char.charCodeAt(0) - 0xFEE0))
+    .replace(/[：]/g, ":");
+}
+function normalizeTime(value){
+  const raw = normalizeDigits(value).trim().replace(/\s/g, "");
+  if(/^\d{1,2}:\d{2}$/.test(raw)){
+    const [h,m] = raw.split(":").map(Number);
+    if(h >= 0 && h <= 23 && m >= 0 && m <= 59) return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+  }
+  if(/^\d{3,4}$/.test(raw)){
+    const padded = raw.padStart(4,"0");
+    const h = Number(padded.slice(0,2));
+    const m = Number(padded.slice(2,4));
+    if(h >= 0 && h <= 23 && m >= 0 && m <= 59) return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+  }
+  return "";
+}
 function timeToMinutes(time){
-  if(!time) return null;
-  const [h,m] = time.split(":").map(Number);
+  const normalized = normalizeTime(time);
+  if(!normalized) return null;
+  const [h,m] = normalized.split(":").map(Number);
   return h * 60 + m;
 }
 function breakMinutes(shift){
@@ -387,7 +379,7 @@ function softColor(hex){
 
 function fillTimeOptions(){
   const list = $("timeOptions");
-  if(list.options.length) return;
+  if(!list || list.options.length) return;
   for(let h=0; h<24; h++){
     for(let m=0; m<60; m+=5){
       const option = document.createElement("option");
@@ -396,34 +388,34 @@ function fillTimeOptions(){
     }
   }
 }
-function normalizeDigits(value){
-  return String(value || "")
-    .replace(/[０-９]/g, char => String.fromCharCode(char.charCodeAt(0) - 0xFEE0))
-    .replace(/[：]/g, ":");
-}
-
-function normalizeTime(value){
-  const raw = normalizeDigits(value).trim();
-  if(/^\d{1,2}:\d{2}$/.test(raw)){
-    let [h,m] = raw.split(":").map(Number);
-    if(h >= 0 && h <= 23 && m >= 0 && m <= 59) return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
-  }
-  if(/^\d{3,4}$/.test(raw)){
-    const padded = raw.padStart(4,"0");
-    const h = Number(padded.slice(0,2));
-    const m = Number(padded.slice(2,4));
-    if(h >= 0 && h <= 23 && m >= 0 && m <= 59) return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
-  }
-  return "";
-}
 function setTime(prefix,time){
-  $(`${prefix}Time`).value = time || (prefix === "start" ? "09:00" : "18:00");
+  $(`${prefix}Time`).value = normalizeTime(time) || (prefix === "start" ? "09:00" : "18:00");
 }
-function getTime(prefix){ return normalizeTime($(`${prefix}Time`).value); }
+function getTime(prefix){
+  const input = $(`${prefix}Time`);
+  return normalizeTime(input ? input.value : "");
+}
 function formatTimeInput(input){
   const normalized = normalizeTime(input.value);
   if(normalized) input.value = normalized;
 }
+function readForm(){
+  const start = normalizeTime($("startTime").value);
+  const end = normalizeTime($("endTime").value);
+  return {
+    place:$("placeSelect").value,
+    start,
+    end,
+    breakMinutes:Number($("breakMinutes").value || 0),
+    memo:$("memo").value.trim()
+  };
+}
+
+function updateTopSummary(weekWorkMinutes, salaryTotal){
+  if($("topMonthSalary")) $("topMonthSalary").textContent = yen(salaryTotal || 0);
+  if($("topMonthWork")) $("topMonthWork").textContent = minuteText(weekWorkMinutes || 0);
+}
+function updateCalc(){ $("calcWork").textContent = minuteText(workMinutes(readForm())); }
 
 function renderAll(){
   renderCalendar();
@@ -436,20 +428,22 @@ function renderCalendar(){
   const m = current.getMonth();
   $("monthTitle").textContent = `${y}年${m+1}月`;
   if($("monthMemo")) $("monthMemo").value = monthMemo();
+
   const grid = $("calendarGrid");
   grid.innerHTML = "";
-  const first = new Date(y,m,1);
-  const start = new Date(y,m,1-first.getDay());
+  const start = new Date(y,m,1-new Date(y,m,1).getDay());
   const today = startOfDay(new Date());
 
   for(let i=0; i<42; i++){
     const date = new Date(start);
     date.setDate(start.getDate() + i);
+
     const cell = document.createElement("div");
     cell.className = "day";
     if(date.getMonth() !== m) cell.classList.add("other");
     if(date.getDay() === 0) cell.classList.add("sunday");
     if(date.getDay() === 6) cell.classList.add("saturday");
+
     const hName = holidayName(date);
     if(hName) cell.classList.add("holiday");
     if(key(date) === key(today)) cell.classList.add("today");
@@ -468,8 +462,8 @@ function renderCalendar(){
 
     getShifts(date).forEach((shift,index) => {
       const p = placeByName(shift.place || "その他");
-      const btn = document.createElement("button");
       const placeIndex = Math.max(0, places().findIndex(item => item.name === p.name));
+      const btn = document.createElement("button");
       btn.className = `shiftChip place-${placeIndex}`;
       btn.style.borderLeftColor = p.color;
       btn.style.background = softColor(p.color);
@@ -520,12 +514,11 @@ function renderSide(){
 
   const mode = $("weekMode").value;
   const wr = weekRange(selected, mode);
-  $("weekRangeLabel").textContent = `${selectedWeekIndex(mode)}週目・${md(wr.start)} 〜 ${md(wr.end)}`;
   const selectedWeekWork = rangeTotal(wr.start, wr.end, "work");
   const selectedWeekBreak = rangeTotal(wr.start, wr.end, "break");
+  $("weekRangeLabel").textContent = `${selectedWeekIndex(mode)}週目・${md(wr.start)} 〜 ${md(wr.end)}`;
   $("weekWork").textContent = minuteText(selectedWeekWork);
   $("weekBreak").textContent = minuteText(selectedWeekBreak);
-  if($("topMonthWork")) $("topMonthWork").textContent = minuteText(selectedWeekWork);
 
   const weekList = $("weekList");
   weekList.innerHTML = "";
@@ -542,6 +535,7 @@ function renderSide(){
   const wageData = wages();
   const byPlace = {};
   places().forEach(p => byPlace[p.name] = { work:0, break:0, color:p.color, wage:Number(wageData[p.name] || 0) });
+
   eachDate(mr.start, mr.end, date => {
     getShifts(date).forEach(shift => {
       const name = shift.place || "その他";
@@ -556,13 +550,12 @@ function renderSide(){
     });
   });
 
+  const salaryTotal = Object.values(byPlace).reduce((sum,total) => sum + (total.work / 60) * Number(total.wage || 0), 0);
   $("monthWork").textContent = minuteText(totalWork);
   $("monthBreak").textContent = minuteText(totalBreak);
-  const salaryTotal = Object.values(byPlace).reduce((sum,total) => sum + (total.work / 60) * Number(total.wage || 0), 0);
   $("monthSalary").textContent = yen(salaryTotal);
-  updateTopSummary(totalWork, salaryTotal);
-  if($("topMonthSalary")) $("topMonthSalary").textContent = yen(salaryTotal);
-  
+  updateTopSummary(selectedWeekWork, salaryTotal);
+
   renderWageSettings();
 
   const placeBox = $("monthByPlace");
@@ -575,14 +568,6 @@ function renderSide(){
     placeBox.appendChild(row);
   });
 }
-
-function updateTopSummary(monthWorkMinutes, salaryTotal){
-  const salary = $("topMonthSalary");
-  const work = $("topMonthWork");
-  if(salary) salary.textContent = yen(salaryTotal || 0);
-  if(work) work.textContent = minuteText(monthWorkMinutes || 0);
-}
-
 function fillPlaceSelect(value){
   const select = $("placeSelect");
   const old = value || select.value;
@@ -595,16 +580,6 @@ function fillPlaceSelect(value){
   });
   if([...select.options].some(o => o.value === old)) select.value = old;
 }
-function readForm(){
-  return {
-    place:$("placeSelect").value,
-    start:getTime("start"),
-    end:getTime("end"),
-    breakMinutes:Number($("breakMinutes").value || 0),
-    memo:$("memo").value.trim()
-  };
-}
-function updateCalc(){ $("calcWork").textContent = minuteText(workMinutes(readForm())); }
 function applyShiftToForm(shift){
   if(!shift) return;
   fillPlaceSelect(shift.place);
@@ -711,12 +686,15 @@ function openShift(index=null){
 }
 function saveShift(){
   const shift = readForm();
+
   if(!shift.start || !shift.end){
     alert("時刻は24時間制で入力してください。例：09:00 または 0900");
     return;
   }
+
   $("startTime").value = shift.start;
   $("endTime").value = shift.end;
+
   const data = loadDay(selected);
   const index = $("editIndex").value;
   if(index === "") data.shifts.push(shift);
@@ -840,6 +818,7 @@ function backup(){
   };
   Object.keys(localStorage).forEach(storageKey => {
     if(storageKey.startsWith(DAY_PREFIX+"20")) output.days[storageKey] = JSON.parse(localStorage.getItem(storageKey));
+    if(storageKey.startsWith(MEMO_PREFIX)) output.memos[storageKey] = localStorage.getItem(storageKey);
   });
   const blob = new Blob([JSON.stringify(output,null,2)], { type:"application/json" });
   const link = document.createElement("a");
@@ -847,7 +826,6 @@ function backup(){
   link.download = `shift-backup-${monthFileKey(new Date())}.json`;
   link.click();
 }
-
 function importBackupData(data){
   if(!data || typeof data !== "object"){
     alert("読み込めないバックアップファイルです。");
@@ -869,13 +847,20 @@ function importBackupData(data){
       localStorage.setItem(keyName, JSON.stringify(value));
     });
   }
+  if(data.memos){
+    Object.keys(localStorage).forEach(storageKey => {
+      if(storageKey.startsWith(MEMO_PREFIX)) localStorage.removeItem(storageKey);
+    });
+    Object.entries(data.memos).forEach(([keyName,value]) => {
+      localStorage.setItem(keyName, value || "");
+    });
+  }
 
   applyingCloud = false;
   syncCloud();
   renderAll();
   alert("インポートしました。ログイン中ならクラウドにも保存されます。");
 }
-
 function handleImportFile(file){
   if(!file) return;
   const reader = new FileReader();
@@ -888,7 +873,6 @@ function handleImportFile(file){
   };
   reader.readAsText(file);
 }
-
 function initAccordions(){
   const saved = JSON.parse(localStorage.getItem(ACCORDION_KEY) || "null") || {};
   document.querySelectorAll(".accordion").forEach(section => {
@@ -905,50 +889,59 @@ function initAccordions(){
     };
   });
 }
+function bindEvents(){
+  fillTimeOptions();
+  initAccordions();
 
-window.handleImportFile = handleImportFile;
-fillTimeOptions();
-initAccordions();
+  $("prevMonth").onclick = () => { current = new Date(current.getFullYear(),current.getMonth()-1,1); renderAll(); };
+  $("nextMonth").onclick = () => { current = new Date(current.getFullYear(),current.getMonth()+1,1); renderAll(); };
+  $("todayBtn").onclick = () => { current = startOfDay(new Date()); selected = startOfDay(new Date()); renderAll(); };
+  $("openAddShift").onclick = () => openShift(null);
+  $("closeDialog").onclick = () => $("shiftDialog").close();
+  $("saveShift").onclick = saveShift;
+  $("deleteShift").onclick = deleteShift;
+  $("weekMode").onchange = renderSide;
+  $("openHistoryPicker").onclick = () => { renderHistoryPicker(); $("historyDialog").showModal(); };
+  $("openPresetPicker").onclick = () => { renderPresetPicker(); $("presetDialog").showModal(); };
+  $("saveAsPreset").onclick = saveCurrentAsPreset;
+  $("closeHistory").onclick = () => $("historyDialog").close();
+  $("closePreset").onclick = () => $("presetDialog").close();
 
-$("prevMonth").onclick = () => { current = new Date(current.getFullYear(),current.getMonth()-1,1); renderAll(); };
-$("nextMonth").onclick = () => { current = new Date(current.getFullYear(),current.getMonth()+1,1); renderAll(); };
-$("todayBtn").onclick = () => { current = startOfDay(new Date()); selected = startOfDay(new Date()); renderAll(); };
-$("openAddShift").onclick = () => openShift(null);
-$("closeDialog").onclick = () => $("shiftDialog").close();
-$("saveShift").onclick = saveShift;
-$("deleteShift").onclick = deleteShift;
-$("weekMode").onchange = renderSide;
-$("openHistoryPicker").onclick = () => { renderHistoryPicker(); $("historyDialog").showModal(); };
-$("openPresetPicker").onclick = () => { renderPresetPicker(); $("presetDialog").showModal(); };
-$("saveAsPreset").onclick = saveCurrentAsPreset;
-$("closeHistory").onclick = () => $("historyDialog").close();
-$("closePreset").onclick = () => $("presetDialog").close();
-
-["placeSelect","startTime","endTime","breakMinutes","memo"].forEach(id => $(id).addEventListener("input",updateCalc));
-["startTime","endTime"].forEach(id => {
-  $(id).addEventListener("blur", e => {
-    formatTimeInput(e.target);
-    updateCalc();
+  ["placeSelect","startTime","endTime","breakMinutes","memo"].forEach(id => $(id).addEventListener("input",updateCalc));
+  ["startTime","endTime"].forEach(id => {
+    $(id).addEventListener("blur", e => {
+      formatTimeInput(e.target);
+      updateCalc();
+    });
   });
-});
-$("addPlace").onclick = () => {
-  const list = places();
-  list.push({ name:`勤務先${list.length+1}`, color:"#339af0" });
-  savePlaces(list);
-  renderAll();
-};
-$("backupBtn").onclick = backup;
-$("cloudSaveBtn").onclick = () => { syncCloud(); alert("現在のデータをクラウドへ保存しました。"); };
-$("importBtn").onclick = () => $("importFile").click();
-$("importFile").onchange = e => handleImportFile(e.target.files[0]);
-$("resetBtn").onclick = () => {
-  if(!confirm("保存されたシフトデータをすべて削除しますか？")) return;
-  Object.keys(localStorage).forEach(storageKey => {
-    if(storageKey.startsWith(DAY_PREFIX)) localStorage.removeItem(storageKey);
-  });
-  savePlaces(defaults);
-  renderAll();
-};
 
+  if($("monthMemo")){
+    $("monthMemo").addEventListener("input", e => {
+      clearTimeout(memoTimer);
+      memoTimer = setTimeout(() => saveMonthMemo(e.target.value), 350);
+    });
+  }
+
+  $("addPlace").onclick = () => {
+    const list = places();
+    list.push({ name:`勤務先${list.length+1}`, color:"#339af0" });
+    savePlaces(list);
+    renderAll();
+  };
+  $("backupBtn").onclick = backup;
+  $("cloudSaveBtn").onclick = () => { syncCloud(); alert("現在のデータをクラウドへ保存しました。"); };
+  $("importBtn").onclick = () => $("importFile").click();
+  $("importFile").onchange = e => handleImportFile(e.target.files[0]);
+  $("resetBtn").onclick = () => {
+    if(!confirm("保存されたシフトデータをすべて削除しますか？")) return;
+    Object.keys(localStorage).forEach(storageKey => {
+      if(storageKey.startsWith(DAY_PREFIX) || storageKey.startsWith(MEMO_PREFIX)) localStorage.removeItem(storageKey);
+    });
+    savePlaces(defaults);
+    renderAll();
+  };
+}
+
+bindEvents();
 setupAuth();
 renderAll();
