@@ -439,130 +439,61 @@ dialog::backdrop{background:rgba(15,20,30,.32)}
   }
 }
 
-/* === Stable 1.0 final overrides === */
-.dataActions{
-  display:grid !important;
-  grid-template-columns:repeat(2,minmax(0,1fr)) !important;
-  gap:8px !important;
-}
-.dataActions button{
-  min-width:0;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-
-.day.saturday{background:#f4f8ff !important;}
-.day.sunday{background:#fff5f5 !important;}
-.day.holiday{background:#fff0f0 !important;}
-.day.saturday .dateNumber{color:var(--blue) !important;}
-.day.sunday .dateNumber,
-.day.holiday .dateNumber{color:var(--danger) !important;}
+/* === Stable 1.1 final fixes === */
+/* Previous/next month dates: always gray, regardless of weekend/holiday/today */
 .day.other,
 .day.other.saturday,
 .day.other.sunday,
 .day.other.holiday,
-.day.other.today{
+.day.other.today,
+.day.other.saturday.today,
+.day.other.sunday.today,
+.day.other.holiday.today{
   background:#fafafa !important;
 }
 .day.other .dateNumber,
-.day.other .holidayText{
+.day.other .holidayText,
+.day.other.saturday .dateNumber,
+.day.other.sunday .dateNumber,
+.day.other.holiday .dateNumber{
   color:#b7bec9 !important;
 }
 
-.topMemoBox{
-  display:grid;
-  grid-template-columns:54px minmax(0,1fr);
-  align-items:start;
-  gap:10px;
-  margin:0 0 12px;
-  padding:10px 12px;
-  border:1px solid var(--line);
-  border-radius:14px;
-  background:#fff;
-}
-.topMemoBox label{
-  font-size:13px;
-  font-weight:900;
-  color:var(--muted);
-  padding-top:8px;
-}
-.topMemoBox textarea{
-  width:100%;
-  min-width:0;
-  resize:vertical;
-  border:0;
-  outline:none;
-  font:inherit;
-  line-height:1.45;
-  background:transparent;
-}
-.saturdayText{color:var(--blue) !important;}
-.sundayText{color:var(--danger) !important;}
-
+/* Mobile dots use the user-selected workplace color, not fixed palette colors */
 @media(max-width:700px){
-  .calendarGrid{grid-auto-rows:1fr;}
-  .day{
-    min-height:auto !important;
-    aspect-ratio:1 / 1;
-    padding:5px;
-    position:relative;
+  .shiftChip{
+    background:var(--place-color) !important;
+    border-left-color:var(--place-color) !important;
   }
+  .shiftChip.place-0,
+  .shiftChip.place-1,
+  .shiftChip.place-2,
+  .shiftChip.place-3,
+  .shiftChip.place-4,
+  .shiftChip.place-5,
+  .shiftChip.place-6{
+    background:var(--place-color) !important;
+  }
+
   .day.other,
   .day.other.saturday,
   .day.other.sunday,
   .day.other.holiday,
-  .day.other.today{
+  .day.other.today,
+  .day.other.saturday.today,
+  .day.other.sunday.today,
+  .day.other.holiday.today{
     background:#fafafa !important;
   }
   .day.other .dateNumber,
-  .day.other .holidayText{
+  .day.other .holidayText,
+  .day.other.saturday .dateNumber,
+  .day.other.sunday .dateNumber,
+  .day.other.holiday .dateNumber{
     color:#b7bec9 !important;
   }
-  .dayNum{
-    margin-bottom:4px;
-    align-items:flex-start;
-  }
-  .dateNumber{
-    font-size:15px;
-    line-height:1;
-  }
-  .holidayText{
-    font-size:8px;
-    line-height:1.1;
-    max-width:100%;
-  }
-  .shiftChip{
-    display:inline-block;
-    width:10px;
-    height:10px;
-    min-width:10px;
-    min-height:10px;
-    padding:0;
-    margin:2px 2px 0 0;
-    border:0 !important;
-    border-radius:50%;
-    vertical-align:top;
-    overflow:hidden;
-    opacity:1 !important;
-    box-shadow:0 0 0 1px rgba(0,0,0,.08);
-  }
-  .shiftChip strong{display:none;}
-  .shiftChip:nth-of-type(n+5){display:none;}
-  .shiftChip.place-0{background:#16a34a !important;}
-  .shiftChip.place-1{background:#dc2626 !important;}
-  .shiftChip.place-2{background:#f59e0b !important;}
-  .shiftChip.place-3{background:#7c3aed !important;}
-  .shiftChip.place-4{background:#2563eb !important;}
-  .shiftChip.place-5{background:#0891b2 !important;}
-  .shiftChip.place-6{background:#be185d !important;}
   .day.other .shiftChip{
     opacity:.55 !important;
     box-shadow:none !important;
   }
-  .topMemoBox{
-    grid-template-columns:1fr;
-    gap:4px;
-  }
-  .topMemoBox label{padding-top:0;}
-  .dataActions{grid-template-columns:1fr !important;}
 }
