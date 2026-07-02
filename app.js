@@ -331,7 +331,7 @@ function monthRange(){
   const m = current.getMonth();
   return { start:new Date(y,m,1), end:new Date(y,m+1,0) };
 }
-function weekRange(date, mode){
+function fullWeekRange(date, mode){
   const d = startOfDay(date);
   const day = d.getDay();
   const offset = mode === "mon" ? (day === 0 ? 6 : day - 1) : day;
@@ -341,6 +341,11 @@ function weekRange(date, mode){
   end.setDate(start.getDate() + 6);
   return { start, end };
 }
+
+function weekRange(date, mode){
+  return fullWeekRange(date, mode);
+}
+
 function rangeTotal(start, end, type){
   let total = 0;
   eachDate(start, end, date => {
@@ -350,10 +355,11 @@ function rangeTotal(start, end, type){
 }
 function weekRows(mode){
   const mr = monthRange();
-  const first = weekRange(mr.start, mode).start;
+  const first = fullWeekRange(mr.start, mode).start;
   const rows = [];
   let start = new Date(first);
   let idx = 1;
+
   while(start <= mr.end){
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
@@ -371,10 +377,12 @@ function weekRows(mode){
 }
 
 function selectedWeekIndex(mode){
+  const rows = weekRows(mode);
   const selectedKey = key(selected);
-  const found = weekRows(mode).find(row => key(row.start) <= selectedKey && selectedKey <= key(row.end));
+  const found = rows.find(row => key(row.start) <= selectedKey && selectedKey <= key(row.end));
   return found ? found.idx : "";
 }
+
 function softColor(hex){
   hex = hex.replace("#","");
   const r = parseInt(hex.slice(0,2),16);
@@ -519,7 +527,7 @@ function renderSide(){
   });
 
   const mode = $("weekMode").value;
-  const wr = weekRange(selected, mode);
+  const wr = fullWeekRange(selected, mode);
   $("weekRangeLabel").textContent = `${selectedWeekIndex(mode)}週目・${md(wr.start)} 〜 ${md(wr.end)}`;
   const selectedWeekWork = rangeTotal(wr.start, wr.end, "work");
   const selectedWeekBreak = rangeTotal(wr.start, wr.end, "break");
