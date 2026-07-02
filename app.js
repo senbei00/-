@@ -318,6 +318,13 @@ function saveDay(date, data){
 function getShifts(date){ return loadDay(date).shifts; }
 function dayWork(date){ return getShifts(date).reduce((sum,s) => sum + workMinutes(s), 0); }
 function dayBreak(date){ return getShifts(date).reduce((sum,s) => sum + breakMinutes(s), 0); }
+function daySalary(date){
+  const wageData = wages();
+  return getShifts(date).reduce((sum, shift) => {
+    const wage = Number(wageData[shift.place || "その他"] || 0);
+    return sum + (workMinutes(shift) / 60) * wage;
+  }, 0);
+}
 
 function eachDate(start, end, callback){
   const d = new Date(start);
@@ -355,14 +362,14 @@ function rangeTotal(start, end, type){
 }
 function weekRows(mode){
   const mr = monthRange();
-  const first = fullWeekRange(mr.start, mode).start;
   const rows = [];
-  let start = new Date(first);
+  let start = fullWeekRange(mr.start, mode).start;
   let idx = 1;
 
   while(start <= mr.end){
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
+
     rows.push({
       idx,
       start:new Date(start),
@@ -370,16 +377,17 @@ function weekRows(mode){
       work:rangeTotal(start, end, "work"),
       break:rangeTotal(start, end, "break")
     });
+
     start.setDate(start.getDate() + 7);
     idx++;
   }
+
   return rows;
 }
 
 function selectedWeekIndex(mode){
-  const rows = weekRows(mode);
   const selectedKey = key(selected);
-  const found = rows.find(row => key(row.start) <= selectedKey && selectedKey <= key(row.end));
+  const found = weekRows(mode).find(row => key(row.start) <= selectedKey && selectedKey <= key(row.end));
   return found ? found.idx : "";
 }
 
@@ -469,7 +477,7 @@ function renderCalendar(){
           <span class="dateNumber">${date.getDate()}</span>
           ${hName ? `<span class="holidayText">${hName}</span>` : ""}
         </span>
-        ${total ? `<span class="dayTotal">${minuteText(total)}</span>` : ""}
+        ${total ? `<span class="dayTotal"><span>${minuteText(total)}</span><span class="dayPay">${yen(daySalary(date))}</span></span>` : ""}
       </div>
     `;
 
@@ -503,6 +511,7 @@ function renderSide(){
   $("selectedDate").className = selectedDateClass(selected);
   $("dayWork").textContent = minuteText(dayWork(selected));
   $("dayBreak").textContent = minuteText(dayBreak(selected));
+  if($("daySalary")) $("daySalary").textContent = yen(daySalary(selected));
 
   const list = $("selectedShiftList");
   list.innerHTML = "";

@@ -497,3 +497,67 @@ dialog::backdrop{background:rgba(15,20,30,.32)}
     box-shadow:none !important;
   }
 }
+
+/* === Stable 1.4 daily pay/time + weekend contrast === */
+.dayTotal{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  gap:1px;
+  color:#a5acb8 !important;
+  font-size:10px !important;
+  line-height:1.15;
+}
+.dayPay{
+  color:#c0c5cf !important;
+  font-weight:700;
+}
+.subtleLine span,
+.subtleLine b{
+  color:#a5acb8 !important;
+}
+
+/* Weekend background: slightly stronger than before */
+.day.saturday:not(.other){
+  background:#edf5ff !important;
+}
+.day.sunday:not(.other),
+.day.holiday:not(.other){
+  background:#fff0f0 !important;
+}
+.day.saturday.today:not(.other){
+  background:#e5f0ff !important;
+}
+.day.sunday.today:not(.other),
+.day.holiday.today:not(.other){
+  background:#ffe7e7 !important;
+}
+
+/* Other month remains gray no matter what */
+.day.other,
+.day.other.saturday,
+.day.other.sunday,
+.day.other.holiday,
+.day.other.today,
+.day.other.saturday.today,
+.day.other.sunday.today,
+.day.other.holiday.today{
+  background:#fafafa !important;
+}
+.day.other .dateNumber,
+.day.other .holidayText{
+  color:#b7bec9 !important;
+}
+
+@media(max-width:700px){
+  .dayTotal{
+    display:none !important;
+  }
+  .day.saturday:not(.other){
+    background:#edf5ff !important;
+  }
+  .day.sunday:not(.other),
+  .day.holiday:not(.other){
+    background:#fff0f0 !important;
+  }
+}
