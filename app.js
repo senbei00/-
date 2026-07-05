@@ -56,7 +56,6 @@ function collectLocalData(){
     wages: JSON.parse(localStorage.getItem("shift:wages") || "null"),
     accordion: JSON.parse(localStorage.getItem("shift:accordion") || "null"),
     activePlaces: JSON.parse(localStorage.getItem(FILTER_KEY) || "null"),
-    design: JSON.parse(localStorage.getItem(DESIGN_KEY) || "null"),
     days,
     memos
   };
@@ -71,8 +70,6 @@ function applyCloudData(data){
   if(data.wages) localStorage.setItem("shift:wages", JSON.stringify(data.wages));
   if(data.accordion) localStorage.setItem("shift:accordion", JSON.stringify(data.accordion));
   if(data.activePlaces) localStorage.setItem(FILTER_KEY, JSON.stringify(data.activePlaces));
-  if(data.design) localStorage.setItem(DESIGN_KEY, JSON.stringify(data.design));
-  applyDesignSettings();
 
   Object.keys(localStorage).forEach(keyName => {
     if(keyName.startsWith("shift:20")) localStorage.removeItem(keyName);
@@ -186,7 +183,6 @@ const ACCORDION_KEY = "shift:accordion";
 const DAY_PREFIX = "shift:";
 const MEMO_PREFIX = "shift:memo:";
 const FILTER_KEY = "shift:activePlaces";
-const DESIGN_KEY = "shift:design";
 
 const defaults = [
   { name:"いきいき", color:"#2f9e44" },
@@ -195,109 +191,6 @@ const defaults = [
   { name:"その他", color:"#7048e8" }
 ];
 
-let current = startOfDay(new Date());
-let selected = startOfDay(new Date());
-
-function startOfDay(date){ const d = new Date(date); d.setHours(0,0,0,0); return d; }
-function key(date){ return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`; }
-function monthFileKey(date){ return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}`; }
-function weekdayLabel(date){ return ["日","月","火","水","木","金","土"][date.getDay()]; }
-function dateText(date){ return `${date.getFullYear()}年${date.getMonth()+1}月${date.getDate()}日（${weekdayLabel(date)}）`; }
-function selectedDateClass(date){
-  if(holidayName(date) || date.getDay() === 0) return "selectedDate sundayText";
-  if(date.getDay() === 6) return "selectedDate saturdayText";
-  return "selectedDate";
-}
-function md(date){ return `${date.getMonth()+1}/${date.getDate()}`; }
-
-function memoKey(date){ return MEMO_PREFIX + monthFileKey(date); }
-function monthMemo(){ return localStorage.getItem(memoKey(current)) || ""; }
-function saveMonthMemo(value){
-  localStorage.setItem(memoKey(current), value || "");
-  syncCloud();
-}
-
-
-
-
-function designSettings(){
-  return {
-    radius:18,
-    gap:16,
-    weekend:2,
-    ...(JSON.parse(localStorage.getItem(DESIGN_KEY) || "null") || {})
-  };
-}
-function saveDesignSettings(data){
-  localStorage.setItem(DESIGN_KEY, JSON.stringify(data));
-  applyDesignSettings();
-  syncCloud();
-}
-function weekendColors(level){
-  const map = [
-    { sat:"#ffffff", sun:"#ffffff" },
-    { sat:"#f4f8ff", sun:"#fff5f5" },
-    { sat:"#edf5ff", sun:"#fff0f0" },
-    { sat:"#e6f1ff", sun:"#ffe9e9" },
-    { sat:"#dfeeff", sun:"#ffe2e2" }
-  ];
-  return map[Number(level)] || map[2];
-}
-function applyDesignSettings(){
-  const data = designSettings();
-  const colors = weekendColors(data.weekend);
-  document.documentElement.style.setProperty("--user-card-radius", `${data.radius}px`);
-  document.documentElement.style.setProperty("--user-layout-gap", `${data.gap}px`);
-  document.documentElement.style.setProperty("--sat-bg", colors.sat);
-  document.documentElement.style.setProperty("--sun-bg", colors.sun);
-
-  if($("radiusControl")){
-    $("radiusControl").value = data.radius;
-    $("radiusValue").textContent = `${data.radius}px`;
-  }
-  if($("gapControl")){
-    $("gapControl").value = data.gap;
-    $("gapValue").textContent = `${data.gap}px`;
-  }
-  if($("weekendControl")){
-    $("weekendControl").value = data.weekend;
-    $("weekendValue").textContent = data.weekend;
-  }
-}
-function bindDesignControls(){
-  const radius = $("radiusControl");
-  const gap = $("gapControl");
-  const weekend = $("weekendControl");
-  const reset = $("designResetBtn");
-
-  if(radius){
-    radius.oninput = e => {
-      const data = designSettings();
-      data.radius = Number(e.target.value);
-      saveDesignSettings(data);
-    };
-  }
-  if(gap){
-    gap.oninput = e => {
-      const data = designSettings();
-      data.gap = Number(e.target.value);
-      saveDesignSettings(data);
-    };
-  }
-  if(weekend){
-    weekend.oninput = e => {
-      const data = designSettings();
-      data.weekend = Number(e.target.value);
-      saveDesignSettings(data);
-    };
-  }
-  if(reset){
-    reset.onclick = () => {
-      saveDesignSettings({ radius:18, gap:16, weekend:2 });
-      renderAll();
-    };
-  }
-}
 
 function activePlaces(){
   const names = places().map(p => p.name);
@@ -321,6 +214,29 @@ function shiftSalary(shift){
   const wage = Number(wageData[shift.place || "その他"] || 0);
   return (workMinutes(shift) / 60) * wage;
 }
+
+let current = startOfDay(new Date());
+let selected = startOfDay(new Date());
+
+function startOfDay(date){ const d = new Date(date); d.setHours(0,0,0,0); return d; }
+function key(date){ return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`; }
+function monthFileKey(date){ return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}`; }
+function weekdayLabel(date){ return ["日","月","火","水","木","金","土"][date.getDay()]; }
+function dateText(date){ return `${date.getFullYear()}年${date.getMonth()+1}月${date.getDate()}日（${weekdayLabel(date)}）`; }
+function selectedDateClass(date){
+  if(holidayName(date) || date.getDay() === 0) return "selectedDate sundayText";
+  if(date.getDay() === 6) return "selectedDate saturdayText";
+  return "selectedDate";
+}
+function md(date){ return `${date.getMonth()+1}/${date.getDate()}`; }
+
+function memoKey(date){ return MEMO_PREFIX + monthFileKey(date); }
+function monthMemo(){ return localStorage.getItem(memoKey(current)) || ""; }
+function saveMonthMemo(value){
+  localStorage.setItem(memoKey(current), value || "");
+  syncCloud();
+}
+
 
 function places(){ return JSON.parse(localStorage.getItem(PLACE_KEY) || "null") || defaults; }
 function savePlaces(list){ localStorage.setItem(PLACE_KEY, JSON.stringify(list)); syncCloud(); }
@@ -428,10 +344,6 @@ function saveDay(date, data){
 }
 function getShifts(date){ return loadDay(date).shifts; }
 function dayWork(date){ return visibleShifts(date).reduce((sum,s) => sum + workMinutes(s), 0); }
-function dayBreak(date){ return visibleShifts(date).reduce((sum,s) => sum + breakMinutes(s), 0); }
-function daySalary(date){
-  return visibleShifts(date).reduce((sum, shift) => sum + shiftSalary(shift), 0);
-}
 
 function eachDate(start, end, callback){
   const d = new Date(start);
@@ -553,7 +465,6 @@ function renderPlaceFilters(){
   if(!box) return;
   const active = activePlaces();
   box.innerHTML = "";
-
   places().forEach(place => {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -970,7 +881,6 @@ function renderPlaceSettings(){
       const deletedName = list[index].name;
       list.splice(index,1);
       savePlaces(list);
-      saveActivePlaces(activePlaces().filter(name => name !== deletedName));
       const wageData = wages();
       delete wageData[deletedName];
       saveWages(wageData);
@@ -1020,8 +930,6 @@ function importBackupData(data){
   if(data.presets) localStorage.setItem(PRESET_KEY, JSON.stringify(data.presets));
   if(data.accordion) localStorage.setItem(ACCORDION_KEY, JSON.stringify(data.accordion));
   if(data.activePlaces) localStorage.setItem(FILTER_KEY, JSON.stringify(data.activePlaces));
-  if(data.design) localStorage.setItem(DESIGN_KEY, JSON.stringify(data.design));
-  applyDesignSettings();
 
   if(data.days){
     Object.keys(localStorage).forEach(storageKey => {
@@ -1051,6 +959,53 @@ function handleImportFile(file){
   reader.readAsText(file);
 }
 
+
+function escapeIcsText(value){
+  return String(value || "").replace(/\\/g,"\\\\").replace(/\n/g,"\\n").replace(/,/g,"\\,").replace(/;/g,"\\;");
+}
+function icsDateTime(date, time){
+  const normalized = normalizeTime(time);
+  const [h,m] = normalized.split(":").map(Number);
+  const d = new Date(date);
+  d.setHours(h,m,0,0);
+  return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}T${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}00`;
+}
+function icsStamp(){
+  const d = new Date();
+  return `${d.getUTCFullYear()}${String(d.getUTCMonth()+1).padStart(2,"0")}${String(d.getUTCDate()).padStart(2,"0")}T${String(d.getUTCHours()).padStart(2,"0")}${String(d.getUTCMinutes()).padStart(2,"0")}${String(d.getUTCSeconds()).padStart(2,"0")}Z`;
+}
+function exportMonthIcs(){
+  const mr = monthRange();
+  const active = new Set(activePlaces());
+  const lines = ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Shift Manager//Shift Calendar//JA","CALSCALE:GREGORIAN","METHOD:PUBLISH","X-WR-CALNAME:シフト","X-WR-TIMEZONE:Asia/Tokyo"];
+  const stamp = icsStamp();
+  let count = 0;
+  eachDate(mr.start, mr.end, date => {
+    getShifts(date).forEach((shift,index) => {
+      const placeName = shift.place || "その他";
+      if(!active.has(placeName)) return;
+      if(!normalizeTime(shift.start) || !normalizeTime(shift.end)) return;
+      const start = icsDateTime(date, shift.start);
+      let endDate = new Date(date);
+      if(timeToMinutes(shift.end) < timeToMinutes(shift.start)) endDate.setDate(endDate.getDate()+1);
+      const end = icsDateTime(endDate, shift.end);
+      const description = [`勤務先: ${placeName}`,`勤務時間: ${shift.start}〜${shift.end}`,`休憩: ${breakMinutes(shift)}分`,`給与目安: ${yen(shiftSalary(shift))}`, shift.memo ? `メモ: ${shift.memo}` : ""].filter(Boolean).join("\\n");
+      lines.push("BEGIN:VEVENT",`UID:${key(date)}-${index}-${encodeURIComponent(placeName)}@shift-manager`,`DTSTAMP:${stamp}`,`DTSTART;TZID=Asia/Tokyo:${start}`,`DTEND;TZID=Asia/Tokyo:${end}`,`SUMMARY:${escapeIcsText(placeName)}`,`DESCRIPTION:${escapeIcsText(description)}`,"BEGIN:VALARM","TRIGGER:-PT30M","ACTION:DISPLAY",`DESCRIPTION:${escapeIcsText(placeName + " 出勤")}`,"END:VALARM","END:VEVENT");
+      count++;
+    });
+  });
+  lines.push("END:VCALENDAR");
+  if(count === 0){
+    alert("出力できるシフトがありません。表示フィルターと対象月を確認してください。");
+    return;
+  }
+  const blob = new Blob([lines.join("\\r\\n")], {type:"text/calendar;charset=utf-8"});
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `shift-calendar-${monthFileKey(current)}.ics`;
+  link.click();
+}
+
 function initAccordions(){
   const saved = JSON.parse(localStorage.getItem(ACCORDION_KEY) || "null") || {};
   document.querySelectorAll(".accordion").forEach(section => {
@@ -1071,16 +1026,14 @@ function initAccordions(){
 window.handleImportFile = handleImportFile;
 fillTimeOptions();
 initAccordions();
-  bindDesignControls();
-  applyDesignSettings();
 
 $("prevMonth").onclick = () => { current = new Date(current.getFullYear(),current.getMonth()-1,1); renderAll(); };
 $("nextMonth").onclick = () => { current = new Date(current.getFullYear(),current.getMonth()+1,1); renderAll(); };
 $("todayBtn").onclick = () => { current = startOfDay(new Date()); selected = startOfDay(new Date()); renderAll(); };
-  if($("filterAllBtn")) $("filterAllBtn").onclick = () => {
-    saveActivePlaces(places().map(p => p.name));
-    renderAll();
-  };
+$("filterAllBtn").onclick = () => {
+  saveActivePlaces(places().map(p => p.name));
+  renderAll();
+};
 $("openAddShift").onclick = () => openShift(null);
 $("closeDialog").onclick = () => $("shiftDialog").close();
 $("saveShift").onclick = saveShift;
@@ -1107,7 +1060,7 @@ $("addPlace").onclick = () => {
 };
 $("backupBtn").onclick = backup;
 $("cloudSaveBtn").onclick = () => { syncCloud(); alert("現在のデータをクラウドへ保存しました。"); };
-  if($("icsExportBtn")) $("icsExportBtn").onclick = exportMonthIcs;
+$("icsExportBtn").onclick = exportMonthIcs;
 $("importBtn").onclick = () => $("importFile").click();
 $("importFile").onchange = e => handleImportFile(e.target.files[0]);
 $("resetBtn").onclick = () => {
@@ -1119,6 +1072,5 @@ $("resetBtn").onclick = () => {
   renderAll();
 };
 
-applyDesignSettings();
 setupAuth();
 renderAll();

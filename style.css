@@ -562,7 +562,7 @@ dialog::backdrop{background:rgba(15,20,30,.32)}
   }
 }
 
-/* === Filter Step 1 === */
+/* === Filter fixed, no design panel === */
 .filterBox{
   margin:0 0 12px;
   padding:10px 12px;
@@ -624,7 +624,9 @@ dialog::backdrop{background:rgba(15,20,30,.32)}
   font-weight:800;
   white-space:nowrap;
 }
-/* Mobile dots use chosen workplace color exactly */
+#icsExportBtn{
+  background:#f8fafc;
+}
 @media(max-width:700px){
   .filterBox{padding:9px 10px;}
   .filterChips{gap:6px;}
@@ -633,50 +635,4 @@ dialog::backdrop{background:rgba(15,20,30,.32)}
     background:var(--place-color) !important;
     border-left-color:var(--place-color) !important;
   }
-}
-
-/* === Step 2: Apple Calendar ICS export === */
-#icsExportBtn{
-  background:#f8fafc;
-}
-
-/* === Step 3: design settings === */
-:root{
-  --user-card-radius:18px;
-  --user-layout-gap:16px;
-  --sat-bg:#edf5ff;
-  --sun-bg:#fff0f0;
-}
-.layout{gap:var(--user-layout-gap) !important;}
-.side{gap:var(--user-layout-gap) !important;}
-.card{border-radius:var(--user-card-radius) !important;}
-.day.saturday:not(.other){background:var(--sat-bg) !important;}
-.day.sunday:not(.other),
-.day.holiday:not(.other){background:var(--sun-bg) !important;}
-.designControls{
-  display:flex;
-  flex-direction:column;
-  gap:12px;
-}
-.designControls label{
-  display:flex;
-  flex-direction:column;
-  gap:7px;
-  color:var(--muted);
-  font-size:13px;
-  font-weight:900;
-}
-.designControls label span{
-  color:var(--text);
-  font-weight:900;
-  margin-left:4px;
-}
-.designControls input[type=range]{
-  width:100%;
-}
-#designResetBtn{
-  width:100%;
-}
-@media(max-width:700px){
-  .layout,.side{gap:var(--user-layout-gap) !important;}
 }
