@@ -636,3 +636,75 @@ dialog::backdrop{background:rgba(15,20,30,.32)}
     border-left-color:var(--place-color) !important;
   }
 }
+
+/* === Filter fixed v2 === */
+.filterBox{
+  margin:0 0 12px;
+  padding:10px 12px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:#fff;
+}
+.filterHead{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-bottom:8px;
+}
+.filterHead span{
+  color:var(--muted);
+  font-size:13px;
+  font-weight:900;
+}
+.filterHead button{
+  padding:5px 9px;
+  font-size:12px;
+  border-radius:999px;
+}
+.filterChips{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+}
+.filterChip{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  padding:7px 10px;
+  background:#fff;
+  font-size:13px;
+  font-weight:800;
+  color:var(--text);
+}
+.filterChip::before{
+  content:"";
+  width:9px;
+  height:9px;
+  border-radius:50%;
+  background:var(--chip-color);
+}
+.filterChip.off{
+  opacity:.45;
+  background:#f6f7f9;
+}
+.filterChip.off::before{
+  background:#c7cdd6;
+}
+.shiftPay{
+  color:#9ca3af;
+  font-size:12px;
+  font-weight:800;
+  white-space:nowrap;
+}
+@media(max-width:700px){
+  .filterBox{padding:9px 10px;}
+  .filterChips{gap:6px;}
+  .filterChip{padding:7px 9px;font-size:12px;}
+  .shiftChip{
+    background:var(--place-color) !important;
+    border-left-color:var(--place-color) !important;
+  }
+}

@@ -308,10 +308,12 @@ function japaneseHolidayMap(year){
 function holidayName(date){ return japaneseHolidayMap(date.getFullYear()).get(key(date)) || ""; }
 
 function timeToMinutes(time){
-  if(!time) return null;
-  const [h,m] = time.split(":").map(Number);
+  const normalized = normalizeTime(time);
+  if(!normalized) return null;
+  const [h,m] = normalized.split(":").map(Number);
   return h * 60 + m;
 }
+
 function breakMinutes(shift){
   if(shift.breakMinutes !== undefined) return Number(shift.breakMinutes || 0);
   return Number(shift.breakH || 0) * 60 + Number(shift.breakM || 0);
@@ -344,6 +346,8 @@ function saveDay(date, data){
 }
 function getShifts(date){ return loadDay(date).shifts; }
 function dayWork(date){ return visibleShifts(date).reduce((sum,s) => sum + workMinutes(s), 0); }
+function dayBreak(date){ return visibleShifts(date).reduce((sum,s) => sum + breakMinutes(s), 0); }
+function daySalary(date){ return visibleShifts(date).reduce((sum,shift) => sum + shiftSalary(shift), 0); }
 
 function eachDate(start, end, callback){
   const d = new Date(start);
@@ -388,7 +392,6 @@ function weekRows(mode){
   while(start <= mr.end){
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
-
     rows.push({
       idx,
       start:new Date(start),
@@ -396,11 +399,9 @@ function weekRows(mode){
       work:rangeTotal(start, end, "work"),
       break:rangeTotal(start, end, "break")
     });
-
     start.setDate(start.getDate() + 7);
     idx++;
   }
-
   return rows;
 }
 
@@ -538,7 +539,6 @@ function renderCalendar(){
       btn.style.borderLeftColor = p.color;
       btn.style.background = softColor(p.color);
       btn.style.setProperty("--place-color", p.color);
-      btn.style.setProperty("--place-color", p.color);
       btn.innerHTML = `<strong>${shift.start || "--:--"}-${shift.end || "--:--"}</strong>`;
       btn.onclick = e => {
         e.stopPropagation();
@@ -629,7 +629,7 @@ function renderSide(){
   $("monthBreak").textContent = minuteText(totalBreak);
   const salaryTotal = Object.values(byPlace).reduce((sum,total) => sum + (total.work / 60) * Number(total.wage || 0), 0);
   $("monthSalary").textContent = yen(salaryTotal);
-  updateTopSummary(totalWork, salaryTotal);
+  updateTopSummary(selectedWeekWork, salaryTotal);
   if($("topMonthSalary")) $("topMonthSalary").textContent = yen(salaryTotal);
   
   renderWageSettings();
@@ -909,6 +909,7 @@ function backup(){
   };
   Object.keys(localStorage).forEach(storageKey => {
     if(storageKey.startsWith(DAY_PREFIX+"20")) output.days[storageKey] = JSON.parse(localStorage.getItem(storageKey));
+    if(storageKey.startsWith(MEMO_PREFIX)) output.memos[storageKey] = localStorage.getItem(storageKey);
   });
   const blob = new Blob([JSON.stringify(output,null,2)], { type:"application/json" });
   const link = document.createElement("a");
@@ -1030,6 +1031,7 @@ initAccordions();
 $("prevMonth").onclick = () => { current = new Date(current.getFullYear(),current.getMonth()-1,1); renderAll(); };
 $("nextMonth").onclick = () => { current = new Date(current.getFullYear(),current.getMonth()+1,1); renderAll(); };
 $("todayBtn").onclick = () => { current = startOfDay(new Date()); selected = startOfDay(new Date()); renderAll(); };
+if($("filterAllBtn")) $("filterAllBtn").onclick = () => { saveActivePlaces(places().map(p => p.name)); renderAll(); };
 $("filterAllBtn").onclick = () => {
   saveActivePlaces(places().map(p => p.name));
   renderAll();
